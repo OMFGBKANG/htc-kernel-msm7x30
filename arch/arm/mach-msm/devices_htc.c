@@ -61,13 +61,13 @@ void __init msm_add_devices(void)
 
 static struct android_pmem_platform_data pmem_pdata = {
 	.name = "pmem",
-	.no_allocator = PMEM_ALLOCATORTYPE_ALLORNOTHING,
+	.allocator_type = PMEM_ALLOCATORTYPE_ALLORNOTHING,
 	.cached = 1,
 };
 
 static struct android_pmem_platform_data pmem_adsp_pdata = {
 	.name = "pmem_adsp",
-	.no_allocator = PMEM_ALLOCATORTYPE_BITMAP,
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
 #if defined(CONFIG_ARCH_MSM7227)
 	.cached = 1,
 #else
@@ -77,7 +77,7 @@ static struct android_pmem_platform_data pmem_adsp_pdata = {
 
 static struct android_pmem_platform_data pmem_camera_pdata = {
 	.name = "pmem_camera",
-	.no_allocator = PMEM_ALLOCATORTYPE_BITMAP,
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
 	.cached = 0,
 };
 
@@ -166,7 +166,7 @@ static struct platform_device hw3d_device = {
 };
 #endif
 
-#if defined(CONFIG_GPU_MSM_KGSL) && !defined(CONFIG_ARCH_MSM8X60)
+#if defined(CONFIG_GPU_MSM_KGSL) && !defined(CONFIG_ARCH_MSM8X60) && !defined(CONFIG_GPU_MSM_KGSL_ADRENO205_HC)
 static struct resource msm_kgsl_resources[] = {
 	{
 		.name	= "kgsl_reg_memory",
@@ -225,6 +225,16 @@ static struct kgsl_platform_data kgsl_pdata = {
 	.imem_clk_name = "imem_clk",
 	.grp3d_clk_name = "grp_clk",
 	.grp2d0_clk_name = "grp_2d_clk",
+#ifdef CONFIG_KGSL_PER_PROCESS_PAGE_TABLE
+	.pt_va_size = SZ_128M - SZ_64K,
+	/* Maximum of 32 concurrent processes */
+	.pt_max_count = 32,
+#else
+	.pt_va_size = SZ_128M,
+	/* We only ever have one pagetable for everybody */
+	.pt_max_count = 1,
+
+#endif
 };
 #endif
 
@@ -260,6 +270,111 @@ static int kgsl_power(bool on)
 }
 #endif
 
+#else //CONFIG_GPU_MSM_KGSL_ADRENO205_HC
+static struct resource kgsl_3d0_resources[] = {
+	{
+		.name  = KGSL_3D0_REG_MEMORY,
+		.start = 0xA3500000, /* 3D GRP address */
+		.end = 0xA351ffff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = KGSL_3D0_IRQ,
+		.start = INT_GRP_3D,
+		.end = INT_GRP_3D,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct kgsl_device_platform_data kgsl_3d0_pdata = {
+	.pwr_data = {
+		.pwrlevel = {
+			{
+				.gpu_freq = 245760000,
+				.bus_freq = 192000000,
+			},
+			{
+				.gpu_freq = 192000000,
+				.bus_freq = 0,
+			},
+		},
+		.init_level = 0,
+		.num_levels = 2,
+		.set_grp_async = set_grp3d_async,
+		.idle_timeout = HZ/20,
+		.nap_allowed = true,
+	},
+	.clk = {
+		.name = {
+			.clk = "grp_clk",
+			.pclk = "grp_pclk",
+		},
+	},
+	.imem_clk_name = {
+		.clk = "imem_clk",
+		.pclk = NULL,
+	},
+};
+
+static struct platform_device msm_kgsl_3d0 = {
+	.name = "kgsl-3d0",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(kgsl_3d0_resources),
+	.resource = kgsl_3d0_resources,
+	.dev = {
+		.platform_data = &kgsl_3d0_pdata,
+	},
+};
+
+#ifdef CONFIG_MSM_KGSL_2D
+static struct resource kgsl_2d0_resources[] = {
+	{
+		.name = KGSL_2D0_REG_MEMORY,
+		.start = 0xA3900000, /* Z180 base address */
+		.end = 0xA3900FFF,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = KGSL_2D0_IRQ,
+		.start = INT_GRP_2D,
+		.end = INT_GRP_2D,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct kgsl_device_platform_data kgsl_2d0_pdata = {
+	.pwr_data = {
+		.pwrlevel = {
+			{
+				.gpu_freq = 0,
+				.bus_freq = 192000000,
+			},
+		},
+		.init_level = 0,
+		.num_levels = 1,
+		/* HW workaround, run Z180 SYNC @ 192 MHZ */
+		.set_grp_async = NULL,
+		.idle_timeout = HZ/10,
+		.nap_allowed = true,
+	},
+	.clk = {
+		.name = {
+			.clk = "grp_2d_clk",
+			.pclk = "grp_2d_pclk",
+		},
+	},
+};
+
+static struct platform_device msm_kgsl_2d0 = {
+	.name = "kgsl-2d0",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(kgsl_2d0_resources),
+	.resource = kgsl_2d0_resources,
+	.dev = {
+		.platform_data = &kgsl_2d0_pdata,
+	},
+};
+#endif
 #endif
 
 void __init msm_add_mem_devices(struct msm_pmem_setting *setting)
@@ -306,7 +421,7 @@ void __init msm_add_mem_devices(struct msm_pmem_setting *setting)
 		platform_device_register(&ram_console_device);
 	}
 
-#if defined(CONFIG_GPU_MSM_KGSL)&& !defined(CONFIG_ARCH_MSM8X60)
+#if defined(CONFIG_GPU_MSM_KGSL)&& !defined(CONFIG_ARCH_MSM8X60) && !defined(CONFIG_GPU_MSM_KGSL_ADRENO205_HC)
 	if (setting->kgsl_size) {
 		msm_kgsl_resources[1].start = setting->kgsl_start;
 		msm_kgsl_resources[1].end = setting->kgsl_start
@@ -321,6 +436,11 @@ void __init msm_add_mem_devices(struct msm_pmem_setting *setting)
 #endif
 		platform_device_register(&msm_kgsl_device);
 	}
+#else
+	platform_device_register(&msm_kgsl_3d0);
+#ifdef CONFIG_MSM_KGSL_2D
+	platform_device_register(&msm_kgsl_2d0);
+#endif
 #endif
 
 #ifdef CONFIG_MSM_CAMERA_7X30
@@ -730,6 +850,23 @@ char * board_get_mfg_sleep_gpio_table(void)
 }
 EXPORT_SYMBOL(board_get_mfg_sleep_gpio_table);
 
+static char *mid_tag;
+static int __init board_set_mid_tag(char *get_hboot_mid)
+{
+	if (strlen(get_hboot_mid))
+		mid_tag = get_hboot_mid;
+	else
+		mid_tag = NULL;
+	return 1;
+}
+__setup("androidboot.mid=", board_set_mid_tag);
+
+void board_get_mid_tag(char **ret_data)
+{
+        *ret_data = mid_tag;
+}
+EXPORT_SYMBOL(board_get_mid_tag);
+
 static char *emmc_tag;
 static int __init board_set_emmc_tag(char *get_hboot_emmc)
 {
@@ -812,4 +949,3 @@ int unregister_notifier_by_psensor(struct notifier_block *nb)
 {
 	return blocking_notifier_chain_unregister(&psensor_notifier_list, nb);
 }
-

@@ -93,6 +93,7 @@ static int codec_spi_read(unsigned char addr, unsigned char *data)
 	return 0;
 }
 
+#ifndef CONFIG_MACH_SAGA
 static int32_t spi_write_table(CODEC_SPI_CMD *cmds, int num)
 {
 	int i;
@@ -118,6 +119,7 @@ static int32_t spi_write_table(CODEC_SPI_CMD *cmds, int num)
 		status = spi_sync(codec_dev, &m);
 	return status;
 }
+#endif
 
 static int aic3254_config(CODEC_SPI_CMD *cmds, int size)
 {
@@ -151,9 +153,7 @@ static int aic3254_config(CODEC_SPI_CMD *cmds, int size)
 	}
 	/* large dsp image use bulk mode to transfer */
         /* avoid to bulk transfer on spi use ext_gpio_cs project */
-#ifndef CONFIG_MACH_SAGA
 	if (size < 1000 || codec_dev->ext_gpio_cs != 0) {
-#endif
 		for (i = 0; i < size; i++) {
 			switch (cmds[i].act) {
 			case 'w':
@@ -182,12 +182,10 @@ static int aic3254_config(CODEC_SPI_CMD *cmds, int size)
 				break;
 			}
 		}
-#ifndef CONFIG_MACH_SAGA
 	} else {
 		/* use bulk to transfer large data */
 		spi_write_table(cmds, size);
 	}
-#endif
 	if (ctl_ops->spibus_enable)
 		ctl_ops->spibus_enable(0);
 	return 0;
