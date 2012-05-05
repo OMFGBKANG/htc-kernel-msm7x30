@@ -66,7 +66,7 @@
 #include <mach/vreg.h>
 #include <mach/atmega_microp.h>
 #include <mach/htc_battery.h>
-#include <linux/tps65200.h>
+#include <linux/tps65200_kingdom.h>
 #include <mach/tpa2051d3.h>
 #include <mach/rpc_pmapp.h>
 #include <mach/htc_headset_mgr.h>
@@ -164,7 +164,6 @@ static struct usb_mass_storage_platform_data mass_storage_pdata = {
 	.vendor		= "HTC",
 	.product	= "Android Phone",
 	.release	= 0x0100,
-	.cdrom_lun	= 2,
 };
 
 static struct platform_device usb_mass_storage_device = {
@@ -201,7 +200,6 @@ static struct android_usb_platform_data android_usb_pdata = {
 	.products = usb_products,
 	.num_functions = ARRAY_SIZE(usb_functions_all),
 	.functions = usb_functions_all,
-	.enable_fast_charge=NULL,
 };
 
 static struct platform_device android_usb_device = {

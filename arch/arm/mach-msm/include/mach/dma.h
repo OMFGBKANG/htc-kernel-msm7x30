@@ -62,7 +62,6 @@ unsigned int msm_dmov_build_crci_mask(int n, ...);
 #define DMOV_CE_CRCI_OUT        2
 #define DMOV_CE_CRCI_HASH       3
 #endif
-#define DMOV_SD_AARM_ADDR DMOV_SD2
 #elif defined(CONFIG_ARCH_MSM8X60)
 #define DMOV_SD_SIZE 0x800
 #define DMOV_SD_MASTER 1
